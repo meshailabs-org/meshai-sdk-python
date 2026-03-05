@@ -44,6 +44,7 @@ class MeshAI:
         self._agent_id: str | None = None
         self._heartbeat_thread: threading.Timer | None = None
         self._heartbeat_running = False
+        self._heartbeat_lock = threading.Lock()
 
         # Batchers for telemetry
         self._heartbeat_batcher = Batcher(
@@ -135,29 +136,34 @@ class MeshAI:
         status: str = "healthy",
     ) -> None:
         """Start automatic background heartbeat."""
-        if self._heartbeat_running:
-            return
+        with self._heartbeat_lock:
+            if self._heartbeat_running:
+                return
 
-        interval = interval_seconds or self._config.heartbeat_interval_seconds
-        self._heartbeat_running = True
+            interval = interval_seconds or self._config.heartbeat_interval_seconds
+            self._heartbeat_running = True
 
         def _send_heartbeat() -> None:
-            if not self._heartbeat_running:
-                return
+            with self._heartbeat_lock:
+                if not self._heartbeat_running:
+                    return
             self.heartbeat(status=status)
-            self._heartbeat_thread = threading.Timer(interval, _send_heartbeat)
-            self._heartbeat_thread.daemon = True
-            self._heartbeat_thread.start()
+            with self._heartbeat_lock:
+                if self._heartbeat_running:
+                    self._heartbeat_thread = threading.Timer(interval, _send_heartbeat)
+                    self._heartbeat_thread.daemon = True
+                    self._heartbeat_thread.start()
 
         _send_heartbeat()
         logger.info("Background heartbeat started (interval=%ss)", interval)
 
     def stop_heartbeat(self) -> None:
         """Stop automatic background heartbeat."""
-        self._heartbeat_running = False
-        if self._heartbeat_thread:
-            self._heartbeat_thread.cancel()
-            self._heartbeat_thread = None
+        with self._heartbeat_lock:
+            self._heartbeat_running = False
+            if self._heartbeat_thread:
+                self._heartbeat_thread.cancel()
+                self._heartbeat_thread = None
 
     def track_usage(
         self,
@@ -171,6 +177,12 @@ class MeshAI:
         """Track token usage. Buffered for batching."""
         if not self._agent_id:
             logger.warning("Cannot track usage: agent not registered")
+            return
+        if not model_provider or not model_name:
+            logger.warning("track_usage: model_provider and model_name are required")
+            return
+        if input_tokens < 0 or output_tokens < 0:
+            logger.warning("track_usage: token counts must be non-negative")
             return
 
         event: dict[str, Any] = {

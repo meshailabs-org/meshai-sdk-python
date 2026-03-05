@@ -24,11 +24,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger("meshai")
 
 
+_WRAPPED_ATTR = "_meshai_wrapped"
+
+
 def wrap_openai(openai_client: Any, meshai: MeshAI) -> Any:
     """Wrap an OpenAI client to auto-track token usage.
 
     Returns the same client with patched chat.completions.create.
     """
+    if getattr(openai_client, _WRAPPED_ATTR, False):
+        logger.debug("OpenAI client already wrapped — skipping")
+        return openai_client
+
     original_create = openai_client.chat.completions.create
 
     @functools.wraps(original_create)
@@ -51,4 +58,5 @@ def wrap_openai(openai_client: Any, meshai: MeshAI) -> Any:
         return response
 
     openai_client.chat.completions.create = tracked_create
+    openai_client._meshai_wrapped = True
     return openai_client

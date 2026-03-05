@@ -23,11 +23,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger("meshai")
 
 
+_WRAPPED_ATTR = "_meshai_wrapped"
+
+
 def wrap_anthropic(anthropic_client: Any, meshai: MeshAI) -> Any:
     """Wrap an Anthropic client to auto-track token usage.
 
     Returns the same client with patched messages.create.
     """
+    if getattr(anthropic_client, _WRAPPED_ATTR, False):
+        logger.debug("Anthropic client already wrapped — skipping")
+        return anthropic_client
+
     original_create = anthropic_client.messages.create
 
     @functools.wraps(original_create)
@@ -50,4 +57,5 @@ def wrap_anthropic(anthropic_client: Any, meshai: MeshAI) -> Any:
         return response
 
     anthropic_client.messages.create = tracked_create
+    anthropic_client._meshai_wrapped = True
     return anthropic_client
