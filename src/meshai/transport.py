@@ -21,7 +21,7 @@ class Transport:
             headers={
                 "Authorization": f"Bearer {config.api_key}",
                 "Content-Type": "application/json",
-                "User-Agent": f"meshai-python/0.1.0",
+                "User-Agent": "meshai-python/0.1.0",
             },
             timeout=config.timeout_seconds,
         )

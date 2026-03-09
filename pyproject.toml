@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "meshai"
+name = "meshai-sdk"
 version = "0.1.0"
 description = "MeshAI Python SDK — Agent telemetry for the Agent Control Plane"
 readme = "README.md"

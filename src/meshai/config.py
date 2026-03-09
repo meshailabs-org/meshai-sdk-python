@@ -1,6 +1,6 @@
 """SDK configuration."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
