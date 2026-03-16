@@ -33,7 +33,7 @@ def test_register_agent():
         )
     )
 
-    client = MeshAI(api_key="msh_test1234", agent_name="test-agent")
+    client = MeshAI(api_key="msh_test1234abcdef5678", agent_name="test-agent")
     result = client.register(framework="crewai", model_provider="openai", model_name="gpt-4o")
 
     assert result["success"] is True
@@ -44,7 +44,7 @@ def test_register_agent():
 @respx.mock
 def test_track_usage_without_register():
     """track_usage should warn and not crash if agent not registered."""
-    client = MeshAI(api_key="msh_test1234", agent_name="test-agent")
+    client = MeshAI(api_key="msh_test1234abcdef5678", agent_name="test-agent")
     # Should not raise
     client.track_usage(
         model_provider="openai",
@@ -56,7 +56,7 @@ def test_track_usage_without_register():
 
 
 def test_register_requires_name():
-    client = MeshAI(api_key="msh_test1234")
+    client = MeshAI(api_key="msh_test1234abcdef5678")
     with pytest.raises(ValueError, match="agent_name is required"):
         client.register()
     client.shutdown()

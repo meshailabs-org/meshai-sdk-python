@@ -24,7 +24,16 @@ class Transport:
                 "User-Agent": "meshai-python/0.1.0",
             },
             timeout=config.timeout_seconds,
+            verify=True,
+            follow_redirects=False,
         )
+
+    def _safe_parse(self, response: httpx.Response, path: str) -> dict[str, Any]:
+        """Parse JSON response safely — never raises."""
+        try:
+            return response.json()
+        except Exception:
+            return {"success": False, "error": f"HTTP {response.status_code}: non-JSON response from {path}"}
 
     def post(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
         """POST with retry logic. Never raises — returns error dict on failure."""
@@ -33,10 +42,10 @@ class Transport:
             try:
                 response = self._client.post(f"/api/v1{path}", json=json)
                 if response.status_code < 500:
-                    return response.json()
+                    return self._safe_parse(response, path)
                 last_error = f"HTTP {response.status_code}"
-            except httpx.HTTPError as e:
-                last_error = str(e)
+            except (httpx.HTTPError, httpx.TimeoutException) as e:
+                last_error = f"{type(e).__name__} on attempt {attempt + 1}"
 
             if attempt < self._config.max_retries - 1:
                 backoff = self._config.retry_backoff_seconds * (2**attempt)
@@ -49,10 +58,10 @@ class Transport:
         """GET request. Never raises."""
         try:
             response = self._client.get(f"/api/v1{path}", params=params)
-            return response.json()
-        except httpx.HTTPError as e:
-            logger.warning("MeshAI API GET failed: %s", e)
-            return {"success": False, "error": str(e)}
+            return self._safe_parse(response, path)
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            logger.warning("MeshAI API GET %s failed: %s", path, type(e).__name__)
+            return {"success": False, "error": f"{type(e).__name__}: request to {path} failed"}
 
     def close(self) -> None:
         self._client.close()
