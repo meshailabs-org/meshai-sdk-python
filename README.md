@@ -16,6 +16,12 @@ pip install meshai-sdk[anthropic]   # Anthropic auto-tracking
 pip install meshai-sdk[crewai]      # CrewAI auto-tracking
 pip install meshai-sdk[langchain]   # LangChain/LangGraph auto-tracking
 pip install meshai-sdk[autogen]     # AutoGen auto-tracking
+pip install meshai-sdk[gemini]           # Google Gemini
+pip install meshai-sdk[bedrock]          # AWS Bedrock
+pip install meshai-sdk[llamaindex]       # LlamaIndex
+pip install meshai-sdk[agno]             # Agno (ex-Phidata)
+pip install meshai-sdk[pydantic-ai]      # Pydantic AI
+pip install meshai-sdk[semantic-kernel]  # Microsoft Semantic Kernel
 ```
 
 ## Quick Start
@@ -131,6 +137,94 @@ track_autogen(meshai)
 ```
 
 ## Agent Queries
+
+### Google Gemini
+
+```python
+from meshai import MeshAI
+from meshai.integrations.gemini import wrap_gemini
+from google import genai
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="custom", model_provider="google")
+
+client = genai.Client(api_key="...")
+tracked = wrap_gemini(client, meshai=meshai)
+response = tracked.models.generate_content(model="gemini-2.5-pro", contents="Hello")
+```
+
+### AWS Bedrock
+
+```python
+from meshai import MeshAI
+from meshai.integrations.bedrock import wrap_bedrock
+import boto3
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="custom", model_provider="bedrock")
+
+bedrock = boto3.client("bedrock-runtime")
+tracked = wrap_bedrock(bedrock, meshai=meshai)
+response = tracked.converse(modelId="anthropic.claude-3-sonnet", messages=[...])
+```
+
+### LlamaIndex
+
+```python
+from meshai import MeshAI
+from meshai.integrations.llamaindex import MeshAILlamaHandler
+from llama_index.core import Settings
+from llama_index.core.callbacks import CallbackManager
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="llamaindex")
+
+handler = MeshAILlamaHandler(meshai)
+Settings.callback_manager = CallbackManager([handler])
+# All LlamaIndex LLM calls now auto-track usage
+```
+
+### Agno
+
+```python
+from meshai import MeshAI
+from meshai.integrations.agno import track_agno
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="agno")
+
+track_agno(meshai)
+# All Agno agents now auto-track usage
+```
+
+### Pydantic AI
+
+```python
+from meshai import MeshAI
+from meshai.integrations.pydantic_ai import track_pydantic_ai
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="pydantic-ai")
+
+track_pydantic_ai(meshai)
+# All Pydantic AI agents now auto-track usage
+```
+
+### Semantic Kernel
+
+```python
+from meshai import MeshAI
+from meshai.integrations.semantic_kernel import track_semantic_kernel
+import semantic_kernel as sk
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="semantic-kernel")
+
+kernel = sk.Kernel()
+track_semantic_kernel(meshai, kernel)
+# All Semantic Kernel function calls now auto-track usage
+```
+
 
 ```python
 # List all agents
