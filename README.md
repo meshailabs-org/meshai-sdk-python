@@ -1,6 +1,6 @@
 # MeshAI Python SDK
 
-Agent telemetry for the [MeshAI Agent Control Plane](https://meshai.dev). Register agents, send heartbeats, and track token usage with zero-config batching.
+Python client for the [MeshAI Agent Control Plane](https://meshai.dev). Register agents, send telemetry, query anomalies, manage governance policies, and track EU AI Act compliance.
 
 ## Install
 
@@ -50,12 +50,12 @@ import openai
 meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
 meshai.register(model_provider="openai", model_name="gpt-4o")
 
-# Wrap the OpenAI client — all completions auto-track usage
 oai = wrap_openai(openai.OpenAI(), meshai=meshai)
 response = oai.chat.completions.create(
     model="gpt-4o",
     messages=[{"role": "user", "content": "Hello"}],
 )
+# Usage automatically tracked!
 ```
 
 ### Anthropic
@@ -76,16 +76,165 @@ response = ant.messages.create(
 )
 ```
 
+## Agent Queries
+
+```python
+# List all agents
+agents = client.list_agents(status="healthy", page=1, limit=50)
+
+# Get single agent
+agent = client.get_agent("01AGENT_ID_HERE")
+
+# Update agent
+client.update_agent("01AGENT_ID", description="Updated description")
+
+# Delete agent (soft delete)
+client.delete_agent("01AGENT_ID")
+```
+
+## Cost Intelligence
+
+```python
+# Cost summary
+summary = client.get_cost_summary(start="2026-03-01T00:00:00Z", end="2026-03-17T00:00:00Z")
+
+# Breakdown by agent or model
+by_agent = client.get_cost_by_agent()
+by_model = client.get_cost_by_model()
+```
+
+## Anomaly Detection
+
+```python
+# List active anomalies
+anomalies = client.list_anomalies(severity="critical")
+
+# Get summary
+summary = client.get_anomaly_summary()
+
+# Acknowledge or resolve
+client.acknowledge_anomaly(event_id=42)
+client.resolve_anomaly(event_id=42)
+```
+
+## Governance
+
+### Risk Classification
+
+```python
+# AI-assisted risk suggestion
+suggestion = client.get_risk_suggestion("01AGENT_ID")
+
+# Classify agent risk (EU AI Act Article 6)
+client.classify_risk(
+    agent_id="01AGENT_ID",
+    risk_level="high",
+    justification="Handles PII in production",
+    assessed_by="security-team",
+)
+
+# Get classification
+risk = client.get_risk_classification("01AGENT_ID")
+```
+
+### Policies
+
+```python
+# Create a policy
+client.create_policy(
+    name="Production models only",
+    policy_type="model_allowlist",
+    rules={"allowed_models": ["gpt-4o", "claude-3-sonnet"]},
+    conditions={"environments": ["production"]},
+)
+
+# List policies
+policies = client.list_policies(enabled=True)
+
+# Dry-run evaluate
+results = client.evaluate_policies(
+    agent_id="01AGENT_ID",
+    provider="openai",
+    model="gpt-4o",
+)
+
+# Update or delete
+client.update_policy(policy_id=1, enabled=False)
+client.delete_policy(policy_id=1)
+```
+
+### Approvals (HITL)
+
+```python
+# Check pending approvals
+count = client.get_pending_count()
+
+# List pending
+pending = client.list_approvals(status="pending")
+
+# Approve or deny
+client.decide_approval(
+    request_id=1,
+    decision="approved",
+    reviewer_id="admin",
+    reason="Reviewed and approved",
+)
+```
+
+## Compliance (EU AI Act)
+
+```python
+# Readiness score (0-120)
+readiness = client.get_readiness_score()
+
+# FRIA template (Article 27)
+fria = client.get_fria("01AGENT_ID")
+
+# Transparency card
+card = client.get_transparency_card("01AGENT_ID")
+```
+
+## Incident Reporting (Article 73)
+
+```python
+# Report incident
+client.create_incident(
+    agent_id="01AGENT_ID",
+    title="Data leak detected",
+    description="Agent exposed PII in response",
+    severity="critical",
+    reported_by="security-team",
+    is_widespread=False,  # True = 2-day deadline, False = 15-day
+)
+
+# List and update
+incidents = client.list_incidents(status="reported")
+client.update_incident(
+    incident_id=1,
+    root_cause="Model hallucination",
+    corrective_actions="Added PII filter policy",
+    authority_notified=True,
+)
+```
+
+## Billing
+
+```python
+# Current plan and agent usage
+billing = client.get_billing_info()
+# Returns: {plan, price_usd, max_agents, current_agents, at_limit}
+```
+
 ## Configuration
 
 ```python
 client = MeshAI(
-    api_key="msh_...",              # Required, must start with msh_
+    api_key="msh_...",              # Required
     agent_name="my-agent",          # Agent name (or pass to register())
-    base_url="https://api.meshai.dev",  # API endpoint
+    base_url="https://api.meshai.dev",
     environment="production",       # production, staging, dev
     batch_size=100,                 # Events per batch
-    flush_interval_seconds=5.0,     # Seconds between auto-flushes
+    flush_interval_seconds=5.0,     # Auto-flush interval
     heartbeat_interval_seconds=60,  # Background heartbeat interval
     max_retries=3,                  # Retry count on failure
     timeout_seconds=10.0,           # HTTP request timeout
@@ -94,10 +243,10 @@ client = MeshAI(
 
 ## Design Principles
 
-- **Never crashes the host** -- all SDK errors are caught and logged
-- **Buffered batching** -- events flush every 5s or 100 events
-- **Background heartbeat** -- daemon thread, auto-stops on shutdown
-- **Minimal dependencies** -- only `httpx`
+- **Never crashes the host** — all SDK errors are caught and logged
+- **Buffered batching** — events flush every 5s or 100 events
+- **Background heartbeat** — daemon thread, auto-stops on shutdown
+- **Minimal dependencies** — only `httpx`
 
 ## License
 

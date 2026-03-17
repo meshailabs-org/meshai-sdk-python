@@ -217,3 +217,259 @@ class MeshAI:
         self._heartbeat_batcher.shutdown()
         self._usage_batcher.shutdown()
         self._transport.close()
+
+    # --- Agent Queries ---
+
+    def list_agents(self, **params: Any) -> dict[str, Any]:
+        """List registered agents. Supports: page, limit, status, framework, team_id, search."""
+        return self._transport.get("/agents", params=params or None)
+
+    def get_agent(self, agent_id: str) -> dict[str, Any]:
+        """Get a single agent by ID."""
+        return self._transport.get(f"/agents/{agent_id}")
+
+    def update_agent(self, agent_id: str, **fields: Any) -> dict[str, Any]:
+        """Update agent fields (name, description, framework, etc.)."""
+        return self._transport.patch(f"/agents/{agent_id}", {k: v for k, v in fields.items() if v is not None})
+
+    def delete_agent(self, agent_id: str) -> dict[str, Any]:
+        """Soft-delete an agent."""
+        return self._transport.delete(f"/agents/{agent_id}")
+
+    # --- Cost Intelligence ---
+
+    def get_cost_summary(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:
+        """Get cost summary for the tenant."""
+        params: dict[str, str] = {}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        return self._transport.get("/cost/summary", params=params or None)
+
+    def get_cost_by_agent(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:
+        """Get cost breakdown by agent."""
+        params: dict[str, str] = {}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        return self._transport.get("/cost/by-agent", params=params or None)
+
+    def get_cost_by_model(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:
+        """Get cost breakdown by model."""
+        params: dict[str, str] = {}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        return self._transport.get("/cost/by-model", params=params or None)
+
+    # --- Anomaly Detection ---
+
+    def list_anomalies(self, **params: Any) -> dict[str, Any]:
+        """List active anomalies. Supports: anomaly_type, severity, page, limit."""
+        return self._transport.get("/anomalies", params=params or None)
+
+    def get_anomaly(self, event_id: int) -> dict[str, Any]:
+        """Get a single anomaly event."""
+        return self._transport.get(f"/anomalies/{event_id}")
+
+    def acknowledge_anomaly(self, event_id: int) -> dict[str, Any]:
+        """Acknowledge an anomaly event."""
+        return self._transport.post(f"/anomalies/{event_id}/acknowledge", {})
+
+    def resolve_anomaly(self, event_id: int) -> dict[str, Any]:
+        """Resolve an anomaly event."""
+        return self._transport.post(f"/anomalies/{event_id}/resolve", {})
+
+    def get_anomaly_summary(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:
+        """Get anomaly summary (counts by type/severity)."""
+        params: dict[str, str] = {}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        return self._transport.get("/anomalies/summary", params=params or None)
+
+    # --- Governance: Audit Trail ---
+
+    def list_audit_events(self, **params: Any) -> dict[str, Any]:
+        """List audit trail events. Supports: event_type, actor_type, resource_type, start, end, page, limit."""
+        return self._transport.get("/audit-trail", params=params or None)
+
+    def get_audit_event(self, event_id: int) -> dict[str, Any]:
+        """Get a single audit event."""
+        return self._transport.get(f"/audit-trail/{event_id}")
+
+    # --- Governance: Risk Classification ---
+
+    def classify_risk(
+        self,
+        agent_id: str,
+        risk_level: str,
+        justification: str,
+        assessed_by: str,
+        domain_tags: list[str] | None = None,
+        ai_act_categories: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Classify an agent's risk level (minimal/limited/high/unacceptable)."""
+        payload: dict[str, Any] = {
+            "risk_level": risk_level,
+            "justification": justification,
+            "assessed_by": assessed_by,
+        }
+        if domain_tags:
+            payload["domain_tags"] = domain_tags
+        if ai_act_categories:
+            payload["ai_act_categories"] = ai_act_categories
+        return self._transport.post(f"/agents/{agent_id}/risk-classification", payload)
+
+    def get_risk_classification(self, agent_id: str) -> dict[str, Any]:
+        """Get current risk classification for an agent."""
+        return self._transport.get(f"/agents/{agent_id}/risk-classification")
+
+    def get_risk_suggestion(self, agent_id: str) -> dict[str, Any]:
+        """Get AI-assisted risk level suggestion based on agent metadata."""
+        return self._transport.get(f"/agents/{agent_id}/risk-suggestion")
+
+    def list_risk_classifications(self, **params: Any) -> dict[str, Any]:
+        """List all risk classifications. Supports: risk_level, page, limit."""
+        return self._transport.get("/risk-classifications", params=params or None)
+
+    # --- Governance: Policies ---
+
+    def create_policy(
+        self,
+        name: str,
+        policy_type: str,
+        rules: dict[str, Any],
+        enabled: bool = True,
+        priority: int = 100,
+        conditions: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a governance policy."""
+        payload: dict[str, Any] = {
+            "name": name,
+            "policy_type": policy_type,
+            "rules": rules,
+            "enabled": enabled,
+            "priority": priority,
+        }
+        if conditions:
+            payload["conditions"] = conditions
+        return self._transport.post("/policies", payload)
+
+    def list_policies(self, **params: Any) -> dict[str, Any]:
+        """List governance policies. Supports: policy_type, enabled, page, limit."""
+        return self._transport.get("/policies", params=params or None)
+
+    def get_policy(self, policy_id: int) -> dict[str, Any]:
+        """Get a single policy."""
+        return self._transport.get(f"/policies/{policy_id}")
+
+    def update_policy(self, policy_id: int, **fields: Any) -> dict[str, Any]:
+        """Update policy fields (name, enabled, priority, conditions, rules)."""
+        return self._transport.patch(f"/policies/{policy_id}", {k: v for k, v in fields.items() if v is not None})
+
+    def delete_policy(self, policy_id: int) -> dict[str, Any]:
+        """Delete a governance policy."""
+        return self._transport.delete(f"/policies/{policy_id}")
+
+    def evaluate_policies(
+        self,
+        agent_id: str,
+        provider: str,
+        model: str,
+        team_id: str | None = None,
+        environment: str = "production",
+    ) -> dict[str, Any]:
+        """Dry-run evaluate all policies against a request context."""
+        payload: dict[str, Any] = {
+            "agent_id": agent_id,
+            "provider": provider,
+            "model": model,
+            "environment": environment,
+        }
+        if team_id:
+            payload["team_id"] = team_id
+        return self._transport.post("/policies/evaluate", payload)
+
+    # --- Governance: Approvals ---
+
+    def list_approvals(self, **params: Any) -> dict[str, Any]:
+        """List approval requests. Supports: status, agent_id, page, limit."""
+        return self._transport.get("/approvals", params=params or None)
+
+    def get_pending_count(self) -> dict[str, Any]:
+        """Get count of pending approval requests."""
+        return self._transport.get("/approvals/pending/count")
+
+    def decide_approval(
+        self,
+        request_id: int,
+        decision: str,
+        reviewer_id: str,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """Approve or deny an approval request."""
+        payload: dict[str, Any] = {
+            "decision": decision,
+            "reviewer_id": reviewer_id,
+        }
+        if reason:
+            payload["reason"] = reason
+        return self._transport.post(f"/approvals/{request_id}/decide", payload)
+
+    # --- Compliance ---
+
+    def get_readiness_score(self) -> dict[str, Any]:
+        """Get EU AI Act compliance readiness score (0-120)."""
+        return self._transport.get("/compliance/readiness")
+
+    def get_fria(self, agent_id: str) -> dict[str, Any]:
+        """Get auto-generated FRIA template for an agent."""
+        return self._transport.get(f"/agents/{agent_id}/fria")
+
+    def get_transparency_card(self, agent_id: str) -> dict[str, Any]:
+        """Get auto-generated transparency card for an agent."""
+        return self._transport.get(f"/agents/{agent_id}/transparency-card")
+
+    # --- Incidents ---
+
+    def create_incident(
+        self,
+        agent_id: str,
+        title: str,
+        description: str,
+        severity: str,
+        reported_by: str,
+        is_widespread: bool = False,
+        anomaly_event_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Report a serious incident (Article 73)."""
+        payload: dict[str, Any] = {
+            "agent_id": agent_id,
+            "title": title,
+            "description": description,
+            "severity": severity,
+            "reported_by": reported_by,
+            "is_widespread": is_widespread,
+        }
+        if anomaly_event_id:
+            payload["anomaly_event_id"] = anomaly_event_id
+        return self._transport.post("/incidents", payload)
+
+    def list_incidents(self, **params: Any) -> dict[str, Any]:
+        """List incident reports. Supports: status, page, limit."""
+        return self._transport.get("/incidents", params=params or None)
+
+    def update_incident(self, incident_id: int, **fields: Any) -> dict[str, Any]:
+        """Update incident (status, root_cause, corrective_actions, authority_notified)."""
+        return self._transport.patch(f"/incidents/{incident_id}", {k: v for k, v in fields.items() if v is not None})
+
+    # --- Billing ---
+
+    def get_billing_info(self) -> dict[str, Any]:
+        """Get current plan and agent usage."""
+        return self._transport.get("/billing")

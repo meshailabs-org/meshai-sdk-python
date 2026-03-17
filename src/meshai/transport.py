@@ -65,3 +65,23 @@ class Transport:
 
     def close(self) -> None:
         self._client.close()
+
+    def patch(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
+        """PATCH request. Never raises."""
+        try:
+            response = self._client.patch(f"/api/v1{path}", json=json)
+            return self._safe_parse(response, path)
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            logger.warning("MeshAI API PATCH %s failed: %s", path, type(e).__name__)
+            return {"success": False, "error": f"{type(e).__name__}: request to {path} failed"}
+
+    def delete(self, path: str) -> dict[str, Any]:
+        """DELETE request. Never raises."""
+        try:
+            response = self._client.delete(f"/api/v1{path}")
+            if response.status_code == 204:
+                return {"success": True}
+            return self._safe_parse(response, path)
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            logger.warning("MeshAI API DELETE %s failed: %s", path, type(e).__name__)
+            return {"success": False, "error": f"{type(e).__name__}: request to {path} failed"}

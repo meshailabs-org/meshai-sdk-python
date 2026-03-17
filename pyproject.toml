@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "meshai-sdk"
-version = "0.1.0"
-description = "MeshAI Python SDK — Agent telemetry for the Agent Control Plane"
+version = "0.2.0"
+description = "MeshAI Python SDK — Agent Control Plane client"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
