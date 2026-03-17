@@ -8,11 +8,14 @@ Python client for the [MeshAI Agent Control Plane](https://meshai.dev). Register
 pip install meshai-sdk
 ```
 
-With OpenAI or Anthropic auto-tracking:
+With framework auto-tracking:
 
 ```bash
-pip install meshai-sdk[openai]
-pip install meshai-sdk[anthropic]
+pip install meshai-sdk[openai]      # OpenAI auto-tracking
+pip install meshai-sdk[anthropic]   # Anthropic auto-tracking
+pip install meshai-sdk[crewai]      # CrewAI auto-tracking
+pip install meshai-sdk[langchain]   # LangChain/LangGraph auto-tracking
+pip install meshai-sdk[autogen]     # AutoGen auto-tracking
 ```
 
 ## Quick Start
@@ -74,6 +77,57 @@ response = ant.messages.create(
     max_tokens=1024,
     messages=[{"role": "user", "content": "Hello"}],
 )
+```
+
+### CrewAI
+
+```python
+from meshai import MeshAI
+from meshai.integrations.crewai import track_crewai
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-crew")
+meshai.register(framework="crewai")
+
+# Enable global tracking — all crews auto-track usage
+track_crewai(meshai)
+
+# Run your crew as normal — model extracted from each LLM call
+crew.kickoff()
+```
+
+### LangChain / LangGraph
+
+```python
+from meshai import MeshAI
+from meshai.integrations.langchain import MeshAICallbackHandler
+from langchain_openai import ChatOpenAI
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="langchain")
+
+handler = MeshAICallbackHandler(meshai)
+
+# Use with any LangChain model — model extracted automatically
+llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
+
+# Or with LangGraph
+config = {"callbacks": [handler]}
+result = graph.stream(input, config=config)
+```
+
+### AutoGen
+
+```python
+from meshai import MeshAI
+from meshai.integrations.autogen import track_autogen
+
+meshai = MeshAI(api_key="msh_...", agent_name="my-agent")
+meshai.register(framework="autogen")
+
+# Enable global tracking
+track_autogen(meshai)
+
+# Run agents as normal — all LLM calls tracked
 ```
 
 ## Agent Queries
