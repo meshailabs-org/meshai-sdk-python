@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "meshai-sdk"
-version = "0.2.1"
+version = "0.2.2"
 description = "MeshAI Python SDK — Agent Control Plane client"
 readme = "README.md"
 license = "MIT"
@@ -30,6 +30,12 @@ anthropic = ["anthropic>=0.30.0"]
 crewai = ["crewai>=0.80.0"]
 langchain = ["langchain-core>=0.3.0"]
 autogen = ["autogen-core>=0.4.0"]
+gemini = ["google-genai>=1.0.0"]
+bedrock = ["boto3>=1.35.0"]
+llamaindex = ["llama-index-core>=0.11.0"]
+agno = ["agno>=1.0.0"]
+pydantic-ai = ["pydantic-ai>=0.0.30"]
+semantic-kernel = ["semantic-kernel>=1.0.0"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
