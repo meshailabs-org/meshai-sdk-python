@@ -373,6 +373,52 @@ billing = client.get_billing_info()
 # Returns: {plan, price_usd, max_agents, current_agents, at_limit}
 ```
 
+## Kill Switch
+
+```python
+# Block an agent immediately (enforced at proxy layer)
+client.block_agent(
+    agent_id="01AGENT_ID",
+    reason="Anomalous behavior detected — cost spike 10x above baseline",
+)
+
+# Unblock when resolved
+client.unblock_agent(agent_id="01AGENT_ID")
+```
+
+## Agent Relationships
+
+```python
+# Get an agent's model/provider dependencies
+relationships = client.get_agent_relationships("01AGENT_ID")
+
+# Get the full organization-wide relationship graph (nodes + edges)
+graph = client.get_relationship_graph()
+# Returns: {nodes: [...], edges: [...]} — ready for D3.js visualization
+```
+
+## ABAC (Agent Owners)
+
+```python
+# Assign an owner with permissions
+client.assign_owner(
+    agent_id="01AGENT_ID",
+    owner_type="team",
+    owner_id="ml-platform-team",
+    owner_name="ML Platform Team",
+    permissions={"can_invoke": True, "can_configure": True, "can_delete": False},
+)
+
+# List owners of an agent
+owners = client.list_agent_owners("01AGENT_ID")
+
+# List agents owned by a specific owner
+agents = client.list_owner_agents("ml-platform-team")
+
+# Remove an owner
+client.remove_owner(agent_id="01AGENT_ID", owner_id=1)
+```
+
 ## Configuration
 
 ```python

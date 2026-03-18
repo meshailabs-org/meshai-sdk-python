@@ -473,3 +473,55 @@ class MeshAI:
     def get_billing_info(self) -> dict[str, Any]:
         """Get current plan and agent usage."""
         return self._transport.get("/billing")
+
+    # --- Kill Switch ---
+
+    def block_agent(self, agent_id: str, reason: str) -> dict[str, Any]:
+        """Block an agent from making requests (kill switch)."""
+        return self._transport.post(f"/agents/{agent_id}/block", {"reason": reason})
+
+    def unblock_agent(self, agent_id: str) -> dict[str, Any]:
+        """Remove block from an agent."""
+        return self._transport.post(f"/agents/{agent_id}/unblock", {})
+
+    # --- Agent Relationships ---
+
+    def get_agent_relationships(self, agent_id: str) -> dict[str, Any]:
+        """Get an agent's model/provider/tool dependencies."""
+        return self._transport.get(f"/agents/{agent_id}/relationships")
+
+    def get_relationship_graph(self) -> dict[str, Any]:
+        """Get the full agent relationship graph (nodes + edges)."""
+        return self._transport.get("/relationships/graph")
+
+    # --- ABAC (Agent Owners) ---
+
+    def assign_owner(
+        self,
+        agent_id: str,
+        owner_type: str,
+        owner_id: str,
+        owner_name: str,
+        permissions: dict[str, bool] | None = None,
+    ) -> dict[str, Any]:
+        """Assign an owner to an agent with permissions."""
+        payload: dict[str, Any] = {
+            "owner_type": owner_type,
+            "owner_id": owner_id,
+            "owner_name": owner_name,
+        }
+        if permissions:
+            payload["permissions"] = permissions
+        return self._transport.post(f"/agents/{agent_id}/owners", payload)
+
+    def list_agent_owners(self, agent_id: str) -> dict[str, Any]:
+        """List all owners of an agent."""
+        return self._transport.get(f"/agents/{agent_id}/owners")
+
+    def remove_owner(self, agent_id: str, owner_id: int) -> dict[str, Any]:
+        """Remove an owner from an agent."""
+        return self._transport.delete(f"/agents/{agent_id}/owners/{owner_id}")
+
+    def list_owner_agents(self, owner_id: str) -> dict[str, Any]:
+        """List all agents owned by a specific owner."""
+        return self._transport.get(f"/owners/{owner_id}/agents")
