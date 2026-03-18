@@ -6,6 +6,12 @@ Python client for the [MeshAI Agent Control Plane](https://meshai.dev). Register
 
 ```bash
 pip install meshai-sdk
+
+> **Note:** On Ubuntu/Debian, if you get `externally-managed-environment` error, use a virtual environment:
+> ```bash
+> python3 -m venv .venv && source .venv/bin/activate
+> pip install meshai-sdk
+> ```
 ```
 
 With framework auto-tracking:
