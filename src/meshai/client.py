@@ -525,3 +525,50 @@ class MeshAI:
     def list_owner_agents(self, owner_id: str) -> dict[str, Any]:
         """List all agents owned by a specific owner."""
         return self._transport.get(f"/owners/{owner_id}/agents")
+
+    # --- Agent Lifecycle ---
+
+    def set_agent_lifecycle(
+        self,
+        agent_id: str,
+        expires_at: str | None = None,
+        review_frequency: str | None = None,
+        sponsor_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Configure agent lifecycle (expiry, review, sponsor)."""
+        payload: dict[str, Any] = {}
+        if expires_at:
+            payload["expires_at"] = expires_at
+        if review_frequency:
+            payload["review_frequency"] = review_frequency
+        if sponsor_id:
+            payload["sponsor_id"] = sponsor_id
+        return self._transport.patch(f"/agents/{agent_id}/lifecycle", payload)
+
+    def list_expired_agents(self) -> dict[str, Any]:
+        """List agents past their expiry date."""
+        return self._transport.get("/agents/expired")
+
+    def list_agents_due_review(self) -> dict[str, Any]:
+        """List agents due for access review."""
+        return self._transport.get("/agents/due-review")
+
+    # --- Quarantine ---
+
+    def quarantine_agent(self, agent_id: str, reason: str) -> dict[str, Any]:
+        """Quarantine a shadow or suspicious agent."""
+        return self._transport.post(f"/agents/{agent_id}/quarantine", {"reason": reason})
+
+    def release_quarantine(self, agent_id: str) -> dict[str, Any]:
+        """Release an agent from quarantine."""
+        return self._transport.post(f"/agents/{agent_id}/release-quarantine", {})
+
+    def list_quarantined_agents(self) -> dict[str, Any]:
+        """List all quarantined agents."""
+        return self._transport.get("/agents/quarantined")
+
+    # --- Security Posture ---
+
+    def get_security_posture(self) -> dict[str, Any]:
+        """Get security posture score (0-100) across 6 dimensions."""
+        return self._transport.get("/security/posture")

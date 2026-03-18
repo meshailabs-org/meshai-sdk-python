@@ -419,6 +419,48 @@ agents = client.list_owner_agents("ml-platform-team")
 client.remove_owner(agent_id="01AGENT_ID", owner_id=1)
 ```
 
+## Agent Lifecycle
+
+```python
+# Set expiry, review frequency, and sponsor
+client.set_agent_lifecycle(
+    agent_id="01AGENT_ID",
+    expires_at="2026-06-30T23:59:59Z",
+    review_frequency="quarterly",
+    sponsor_id="ml-platform-team",
+)
+
+# List expired agents
+expired = client.list_expired_agents()
+
+# List agents due for review
+due = client.list_agents_due_review()
+```
+
+## Quarantine
+
+```python
+# Quarantine a shadow agent
+client.quarantine_agent(
+    agent_id="01AGENT_ID",
+    reason="Unknown agent detected — not in registry",
+)
+
+# List quarantined agents
+quarantined = client.list_quarantined_agents()
+
+# Release from quarantine after review
+client.release_quarantine(agent_id="01AGENT_ID")
+```
+
+## Security Posture
+
+```python
+# Get security posture score (0-100) across 6 dimensions
+posture = client.get_security_posture()
+# Returns: {score, dimensions: {agent_ownership, expiry_coverage, access_reviews, ...}}
+```
+
 ## Configuration
 
 ```python
