@@ -66,7 +66,29 @@ def test_get_network_error():
 
 
 @respx.mock
-def test_post_retry_on_500():
+def test_post_retry_on_500_when_idempotent():
+    route = respx.post(f"{BASE}/api/v1/agents")
+    route.side_effect = [
+        httpx.Response(500),
+        httpx.Response(200, json={"success": True, "data": {}}),
+    ]
+    config = MeshAIConfig(
+        api_key="msh_test1234abcdef5678",
+        base_url=BASE,
+        max_retries=2,
+        retry_backoff_seconds=0.01,
+    )
+    t = Transport(config)
+    result = t.post("/agents", {"name": "test"}, idempotent=True)
+    assert result["success"] is True
+    assert route.call_count == 2
+    t.close()
+
+
+@respx.mock
+def test_post_no_retry_on_500_by_default():
+    # Non-idempotent POSTs must NOT retry on 5xx — the request may have committed
+    # server-side, so a blind retry would duplicate the effect.
     route = respx.post(f"{BASE}/api/v1/agents")
     route.side_effect = [
         httpx.Response(500),
@@ -80,8 +102,8 @@ def test_post_retry_on_500():
     )
     t = Transport(config)
     result = t.post("/agents", {"name": "test"})
-    assert result["success"] is True
-    assert route.call_count == 2
+    assert result["success"] is False
+    assert route.call_count == 1
     t.close()
 
 
