@@ -65,11 +65,25 @@ def wrap_bedrock(bedrock_client: Any, meshai: MeshAI) -> Any:
         @functools.wraps(original_invoke)
         def tracked_invoke(*args: Any, **kwargs: Any) -> Any:
             response = original_invoke(*args, **kwargs)
+            # The Bedrock response body is a single-use StreamingBody. Read it,
+            # then put a fresh stream back so the caller can still read it — never
+            # consume the host application's own response.
+            raw = None
+            body = response.get("body")
+            if body is not None and hasattr(body, "read"):
+                try:
+                    import io
+
+                    from botocore.response import StreamingBody
+
+                    raw = body.read()
+                    response["body"] = StreamingBody(io.BytesIO(raw), len(raw))
+                except Exception:
+                    logger.debug("Failed to buffer Bedrock body", exc_info=True)
             try:
-                model_id = kwargs.get("modelId", "unknown")
-                body = response.get("body")
-                if body:
-                    result = json.loads(body.read())
+                if raw is not None:
+                    model_id = kwargs.get("modelId", "unknown")
+                    result = json.loads(raw)
                     usage = result.get("usage", {})
                     meshai.track_usage(
                         model_provider="bedrock",
