@@ -1,6 +1,7 @@
 """HTTP transport layer with retry logic."""
 
 import logging
+import random
 import time
 from typing import Any
 
@@ -35,23 +36,63 @@ class Transport:
         except Exception:
             return {"success": False, "error": f"HTTP {response.status_code}: non-JSON response from {path}"}
 
-    def post(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
-        """POST with retry logic. Never raises — returns error dict on failure."""
+    def _backoff(self, attempt: int) -> float:
+        """Exponential backoff with jitter to avoid synchronized retry storms."""
+        base = self._config.retry_backoff_seconds * (2**attempt)
+        return base + random.uniform(0, base * 0.25)
+
+    @staticmethod
+    def _parse_retry_after(value: str | None) -> float | None:
+        if not value:
+            return None
+        try:
+            return max(0.0, float(value))
+        except (TypeError, ValueError):
+            return None
+
+    def post(
+        self, path: str, json: dict[str, Any], idempotent: bool = False
+    ) -> dict[str, Any]:
+        """POST. Never raises — returns error dict on failure.
+
+        Non-idempotent POSTs (the default) are NOT retried on 5xx or network
+        errors: the request may have already committed server-side, so a blind
+        retry would duplicate the effect (e.g. double-counted usage, duplicate
+        agents/incidents). A 429 is always safe to retry (the request was
+        rejected, not processed) and honors Retry-After. Pass idempotent=True for
+        endpoints that are safe to repeat.
+        """
         last_error = None
         for attempt in range(self._config.max_retries):
             try:
                 response = self._client.post(f"/api/v1{path}", json=json)
-                if response.status_code < 500:
+                status = response.status_code
+                if status == 429:
+                    last_error = "HTTP 429"
+                    if attempt < self._config.max_retries - 1:
+                        wait = self._parse_retry_after(
+                            response.headers.get("retry-after")
+                        )
+                        time.sleep(wait if wait is not None else self._backoff(attempt))
+                        continue
                     return self._safe_parse(response, path)
-                last_error = f"HTTP {response.status_code}"
+                if status < 500:
+                    return self._safe_parse(response, path)
+                last_error = f"HTTP {status}"
+                if not idempotent:
+                    return self._safe_parse(response, path)
             except (httpx.HTTPError, httpx.TimeoutException) as e:
                 last_error = f"{type(e).__name__} on attempt {attempt + 1}"
+                if not idempotent:
+                    return {"success": False, "error": last_error}
 
             if attempt < self._config.max_retries - 1:
-                backoff = self._config.retry_backoff_seconds * (2**attempt)
-                time.sleep(backoff)
+                time.sleep(self._backoff(attempt))
 
-        logger.warning("MeshAI API request failed after %d retries: %s", self._config.max_retries, last_error)
+        logger.warning(
+            "MeshAI API request failed after %d retries: %s",
+            self._config.max_retries, last_error,
+        )
         return {"success": False, "error": last_error}
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:

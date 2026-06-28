@@ -103,9 +103,16 @@ class MeshAI:
             payload["metadata"] = metadata
 
         result = self._transport.post("/agents", payload)
-        if result.get("success") and result.get("data"):
-            self._agent_id = result["data"]["id"]
-            logger.info("Agent registered: %s (id=%s)", agent_name, self._agent_id)
+        data = result.get("data")
+        if result.get("success") and isinstance(data, dict):
+            agent_id = data.get("id")
+            if agent_id:
+                self._agent_id = agent_id
+                logger.info("Agent registered: %s (id=%s)", agent_name, self._agent_id)
+            else:
+                logger.warning(
+                    "Agent registration response had no id; unexpected shape"
+                )
         return result
 
     def heartbeat(
