@@ -28,6 +28,7 @@ pip install meshai-sdk[llamaindex]       # LlamaIndex
 pip install meshai-sdk[agno]             # Agno (ex-Phidata)
 pip install meshai-sdk[pydantic-ai]      # Pydantic AI
 pip install meshai-sdk[semantic-kernel]  # Microsoft Semantic Kernel
+pip install meshai-sdk[tracer]           # OTel-native Tracer (sessions/spans)
 ```
 
 ## Quick Start
@@ -52,6 +53,55 @@ client.track_usage(
 # Graceful shutdown (also registered via atexit)
 client.shutdown()
 ```
+
+## Tracer (OTel-native sessions & spans)
+
+For connectors and agents that need span-level telemetry (sessions, tool
+steps, per-call usage) rather than the buffered `track_usage` client, the
+Tracer emits OpenTelemetry spans over OTLP/HTTP protobuf directly to
+MeshAI's ingest endpoint. Synchronous API (async is v2 scope).
+
+```python
+from meshai.tracer import Tracer
+
+tracer = Tracer(
+    api_key="msh_...",
+    service_name="my-agent",
+    framework="claude-code",  # -> meshai.agent.framework resource attribute
+)
+
+with tracer.session() as session:
+    # Tool step: structural metadata always flows; tool_input/tool_output
+    # content is DROPPED unless allowlisted (see Content filtering below).
+    with session.span("step", tool_name="Bash", tool_input="ls -la") as span:
+        ...
+
+    # LLM usage -> MeshAI cost attribution (gen_ai.* semantic conventions)
+    session.record_llm_call(
+        "anthropic", "claude-sonnet-4-6", input_tokens=1850, output_tokens=420
+    )
+
+tracer.flush()     # force-export before ephemeral compute exits
+tracer.shutdown()  # also registered atexit
+```
+
+### Content filtering (default-deny)
+
+Tool content never leaves the process unless you opt in per tool in
+`~/.config/meshai/filters.yaml`:
+
+```yaml
+tools:
+  Bash:
+    allow: [tool_input]        # tool_output stays dropped
+```
+
+Allowlisted content is scrubbed by built-in secret patterns (Anthropic /
+OpenAI / AWS / GitHub / Slack / Google keys, JWTs, private-key blocks,
+bearer headers, credential assignments, ...) before emission. Redaction
+runs under a per-pattern timeout and fails closed: on timeout the value is
+replaced with `{"filtered": true, "reason": "filter_timeout"}`, never
+emitted raw.
 
 ## Auto-Tracking Integrations
 

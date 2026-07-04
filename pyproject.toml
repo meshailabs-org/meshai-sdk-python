@@ -35,8 +35,15 @@ bedrock = ["boto3>=1.35.0"]
 llamaindex = ["llama-index-core>=0.11.0"]
 agno = ["agno>=1.0.0"]
 pydantic-ai = ["pydantic-ai>=0.0.30"]
+tracer = [
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.27.0",
+    "regex>=2024.4.16",
+    "pyyaml>=6.0",
+]
 semantic-kernel = ["semantic-kernel>=1.0.0"]
 dev = [
+    "meshai-sdk[tracer]",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "respx>=0.22.0",
