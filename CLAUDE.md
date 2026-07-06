@@ -11,6 +11,9 @@ src/meshai/
   config.py         — Immutable config dataclass
   transport.py      — HTTP layer with retry (httpx)
   batcher.py        — Thread-safe buffered batch flusher
+  tracer/
+    tracer.py       — OTel-native Tracer: Session/Span context managers (sync, v1)
+    filters.py      — Default-deny content filter + secret redaction (fail-closed)
   integrations/
     openai.py       — Auto-tracking wrapper for OpenAI
     anthropic.py    — Auto-tracking wrapper for Anthropic
@@ -21,7 +24,7 @@ src/meshai/
 - **Buffered batching** — events flush every 5s or 100 events
 - **Background heartbeat** — daemon thread, auto-stops on shutdown
 - **Graceful shutdown** — atexit handler flushes remaining events
-- **Minimal dependencies** — only httpx
+- **Minimal dependencies** — only httpx (Tracer deps live behind the `tracer` extra)
 
 ## Commands
 ```bash
