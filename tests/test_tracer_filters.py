@@ -93,16 +93,106 @@ def test_multiple_secrets_in_one_value_all_redacted():
     assert "AKIA" not in result
 
 
+# --- hostile-QA evasion (T9): homoglyph, base64-wrap, attribute-split -------
+
+
+def test_homoglyph_cyrillic_secret_redacted():
+    pipeline = FilterPipeline(ALLOW_BASH_INPUT)
+    # CYRILLIC SMALL A (U+0430) inside the key prefix.
+    sample = f"key=sk-аnt-{'a' * 24}"
+    result = pipeline.filter_content("Bash", "tool_input", sample)
+    assert "[REDACTED:anthropic_api_key]" in result
+    assert "a" * 24 not in result
+    assert result.startswith("key=")  # surrounding text preserved
+
+
+def test_homoglyph_fullwidth_secret_redacted():
+    pipeline = FilterPipeline(ALLOW_BASH_INPUT)
+    # Fullwidth 's', 'k' and hyphen (ｓｋ－) spelling the prefix.
+    sample = f"ｓｋ－ant-{'b' * 24} deployed"
+    result = pipeline.filter_content("Bash", "tool_input", sample)
+    assert "[REDACTED:anthropic_api_key]" in result
+    assert "b" * 24 not in result
+    assert result.endswith(" deployed")
+
+
+def test_base64_wrapped_secret_redacted():
+    import base64
+
+    pipeline = FilterPipeline(ALLOW_BASH_INPUT)
+    encoded = base64.b64encode(
+        f"export ANTHROPIC_API_KEY=sk-ant-{'c' * 24}".encode()
+    ).decode()
+    sample = f"echo {encoded} | base64 -d | sh"
+    result = pipeline.filter_content("Bash", "tool_input", sample)
+    assert encoded not in result
+    assert "[REDACTED:base64_anthropic_api_key]" in result
+    assert result.startswith("echo ") and result.endswith(" | base64 -d | sh")
+
+
+def test_base64_urlsafe_wrapped_secret_redacted():
+    import base64
+
+    pipeline = FilterPipeline(ALLOW_BASH_INPUT)
+    encoded = base64.urlsafe_b64encode(
+        f"aws_access_key_id = AKIAIOSFODNN7EXAMPLE >>{'!' * 8}".encode()
+    ).decode()
+    result = pipeline.filter_content("Bash", "tool_input", f"run {encoded}")
+    assert encoded not in result
+    assert "[REDACTED:base64_aws_access_key_id]" in result
+
+
+def test_benign_base64_passes_untouched():
+    import base64
+
+    pipeline = FilterPipeline(ALLOW_BASH_INPUT)
+    encoded = base64.b64encode(b"just a plain sentence with no secrets").decode()
+    sample = f"payload={encoded}"
+    assert pipeline.filter_content("Bash", "tool_input", sample) == sample
+
+
+def test_long_non_base64_run_passes_untouched():
+    pipeline = FilterPipeline(ALLOW_BASH_INPUT)
+    sample = f"sha256:{'deadbeef' * 8}"
+    assert pipeline.filter_content("Bash", "tool_input", sample) == sample
+
+
+def test_cross_attribute_split_is_controlled_by_allowlist():
+    """A secret split ACROSS attributes is out of redaction's reach by
+    construction — each fragment alone matches nothing. The control for this
+    class is the default-deny allowlist: fragments leak nothing unless the
+    user explicitly opted the field in. This test pins that boundary."""
+    pipeline = FilterPipeline()  # default deny-all
+    assert pipeline.filter_content("Bash", "tool_input", "sk-ant-") is None
+    assert pipeline.filter_content("Bash", "tool_output", "abcd1234" * 3) is None
+    # Opted-in, the bare fragment passes — documented residual risk.
+    opted = FilterPipeline(ALLOW_BASH_INPUT)
+    assert pipeline.filter_content("Bash", "tool_output", "sk-ant-") is None
+    assert opted.filter_content("Bash", "tool_input", "sk-ant-") == "sk-ant-"
+
+
+def test_overlapping_matches_merge_and_preserve_surroundings():
+    pipeline = FilterPipeline(ALLOW_BASH_INPUT)
+    value = f"pre sk-ant-{'d' * 24} mid AKIAIOSFODNN7EXAMPLE post"
+    result = pipeline.filter_content("Bash", "tool_input", value)
+    assert result.startswith("pre ") and result.endswith(" post")
+    assert " mid " in result
+    assert result.count("[REDACTED:") == 2
+
+
 # --- fail-closed on pattern timeout (D5 eng) --------------------------------
 
 
 class _TimingOutPattern:
-    """Duck-types regex.Pattern.sub but always exceeds the budget.
+    """Duck-types regex.Pattern but always exceeds the budget.
 
     The regex module raises the builtin TimeoutError on budget exhaustion.
     """
 
-    def sub(self, repl, value, timeout=None):
+    def finditer(self, value, timeout=None):
+        raise TimeoutError("regex timeout")
+
+    def search(self, value, timeout=None):
         raise TimeoutError("regex timeout")
 
 

@@ -140,21 +140,51 @@ class FilterPipeline:
         return self.redact(_coerce(value))
 
     def redact(self, value: str) -> str:
-        """Scrub secrets from an allowlisted value; fail CLOSED on timeout."""
+        """Scrub secrets from an allowlisted value; fail CLOSED on timeout.
+
+        Evasion hardening: patterns match against a homoglyph-normalized
+        copy of the value (1:1 char translation, so match positions map back
+        to the original), and base64-looking runs are decoded and scanned so
+        an encoded secret redacts its carrier run. A secret split across
+        DIFFERENT attributes is out of redaction's reach by construction —
+        the default-deny allowlist is the control for that class (each field
+        leaks nothing unless explicitly opted in).
+        """
+        normalized = value.translate(_CONFUSABLES)
+        try:
+            spans = self._pattern_spans(normalized)
+            spans += self._base64_spans(normalized)
+        except TimeoutError:
+            # regex.TimeoutError subclasses TimeoutError. A timeout means we
+            # could not prove the value clean — drop it entirely.
+            logger.warning(
+                "meshai.tracer: filter timed out; value dropped (fail-closed)"
+            )
+            return TIMEOUT_PLACEHOLDER
+        return _splice(value, spans)
+
+    def _pattern_spans(self, normalized: str) -> list[tuple[int, int, str]]:
+        spans = []
         for name, pattern in self._patterns:
-            try:
-                value = pattern.sub(
-                    f"[REDACTED:{name}]", value, timeout=PATTERN_TIMEOUT_SECONDS
-                )
-            except TimeoutError:
-                # regex.TimeoutError subclasses TimeoutError. A timeout means
-                # we could not prove the value clean — drop it entirely.
-                logger.warning(
-                    "meshai.tracer: filter pattern %r timed out; value dropped "
-                    "(fail-closed)", name,
-                )
-                return TIMEOUT_PLACEHOLDER
-        return value
+            for m in pattern.finditer(
+                normalized, timeout=PATTERN_TIMEOUT_SECONDS
+            ):
+                spans.append((m.start(), m.end(), name))
+        return spans
+
+    def _base64_spans(self, normalized: str) -> list[tuple[int, int, str]]:
+        """Redact base64 runs whose decoded content matches a secret pattern."""
+        spans = []
+        for run in _B64_RUN.finditer(normalized, timeout=PATTERN_TIMEOUT_SECONDS):
+            decoded = _b64_decode(run.group())
+            if decoded is None or len(decoded) < 16:
+                continue
+            decoded = decoded.translate(_CONFUSABLES)
+            for name, pattern in self._patterns:
+                if pattern.search(decoded, timeout=PATTERN_TIMEOUT_SECONDS):
+                    spans.append((run.start(), run.end(), f"base64_{name}"))
+                    break
+        return spans
 
 
 def _coerce(value: object) -> str:
@@ -165,3 +195,77 @@ def _coerce(value: object) -> str:
         return json.dumps(value, default=str)
     except (TypeError, ValueError):
         return str(value)
+
+
+def _splice(original: str, spans: list[tuple[int, int, str]]) -> str:
+    """Replace matched spans in the ORIGINAL value (positions come from the
+    normalized copy, which is length-identical). Overlaps merge, keeping the
+    first label."""
+    if not spans:
+        return original
+    spans.sort(key=lambda s: (s[0], -s[1]))
+    merged: list[tuple[int, int, str]] = []
+    for start, end, label in spans:
+        if merged and start <= merged[-1][1]:
+            prev_start, prev_end, prev_label = merged[-1]
+            merged[-1] = (prev_start, max(prev_end, end), prev_label)
+        else:
+            merged.append((start, end, label))
+    out: list[str] = []
+    cursor = 0
+    for start, end, label in merged:
+        out.append(original[cursor:start])
+        out.append(f"[REDACTED:{label}]")
+        cursor = end
+    out.append(original[cursor:])
+    return "".join(out)
+
+
+# Base64-looking runs: long enough that a decoded secret could hide inside.
+_B64_RUN = regex.compile(r"[A-Za-z0-9+/_\-]{24,}={0,2}")
+
+
+def _b64_decode(candidate: str) -> str | None:
+    """Best-effort decode of a base64ish run to text, else None."""
+    import base64  # noqa: PLC0415
+
+    padded = candidate + "=" * (-len(candidate) % 4)
+    for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+        try:
+            raw = decoder(padded)
+        except (ValueError, TypeError):
+            continue
+        text = raw.decode("utf-8", errors="ignore")
+        # Require the decode to look like text, not binary noise.
+        if text and sum(c.isprintable() or c.isspace() for c in text) / len(text) > 0.9:
+            return text
+    return None
+
+
+def _build_confusables() -> dict[int, int]:
+    """1:1 homoglyph → ASCII map (length-preserving, so match positions on
+    the normalized copy are valid in the original).
+
+    Covers the practical evasion set: Cyrillic and Greek Latin-lookalikes
+    plus fullwidth forms. Zero-width joiners are NOT handled here (deleting
+    them would shift positions); they remain a documented residual risk.
+    """
+    pairs = {
+        # Cyrillic lowercase / uppercase lookalikes
+        "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "х": "x",
+        "у": "y", "і": "i", "ѕ": "s", "к": "k", "ј": "j", "һ": "h",
+        "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H",
+        "О": "O", "Р": "P", "С": "C", "Т": "T", "Х": "X", "У": "Y",
+        # Greek lookalikes
+        "α": "a", "ο": "o", "ρ": "p", "ι": "i", "κ": "k", "τ": "t",
+        "υ": "u", "ν": "v", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z",
+        "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O",
+        "Ρ": "P", "Τ": "T", "Χ": "X",
+    }
+    table = {ord(src): ord(dst) for src, dst in pairs.items()}
+    # Fullwidth ASCII block (！ .. ～) → ASCII
+    table.update({c: c - 0xFEE0 for c in range(0xFF01, 0xFF5F)})
+    return table
+
+
+_CONFUSABLES = _build_confusables()
