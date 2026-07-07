@@ -150,10 +150,10 @@ from meshai.integrations.crewai import track_crewai
 meshai = MeshAI(api_key="msh_...", agent_name="my-crew")
 meshai.register(framework="crewai")
 
-# Enable global tracking — all crews auto-track usage
+# Enable global tracking: all crews auto-track usage
 track_crewai(meshai)
 
-# Run your crew as normal — model extracted from each LLM call
+# Run your crew as normal: model extracted from each LLM call
 crew.kickoff()
 ```
 
@@ -169,7 +169,7 @@ meshai.register(framework="langchain")
 
 handler = MeshAICallbackHandler(meshai)
 
-# Use with any LangChain model — model extracted automatically
+# Use with any LangChain model: model extracted automatically
 llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
 
 # Or with LangGraph
@@ -189,7 +189,7 @@ meshai.register(framework="autogen")
 # Enable global tracking
 track_autogen(meshai)
 
-# Run agents as normal — all LLM calls tracked
+# Run agents as normal: all LLM calls tracked
 ```
 
 ## Agent Queries
@@ -435,7 +435,7 @@ billing = client.get_billing_info()
 # Block an agent immediately (enforced at proxy layer)
 client.block_agent(
     agent_id="01AGENT_ID",
-    reason="Anomalous behavior detected — cost spike 10x above baseline",
+    reason="Anomalous behavior detected: cost spike 10x above baseline",
 )
 
 # Unblock when resolved
@@ -450,7 +450,7 @@ relationships = client.get_agent_relationships("01AGENT_ID")
 
 # Get the full organization-wide relationship graph (nodes + edges)
 graph = client.get_relationship_graph()
-# Returns: {nodes: [...], edges: [...]} — ready for D3.js visualization
+# Returns: {nodes: [...], edges: [...]}, ready for D3.js visualization
 ```
 
 ## ABAC (Agent Owners)
@@ -499,7 +499,7 @@ due = client.list_agents_due_review()
 # Quarantine a shadow agent
 client.quarantine_agent(
     agent_id="01AGENT_ID",
-    reason="Unknown agent detected — not in registry",
+    reason="Unknown agent detected: not in registry",
 )
 
 # List quarantined agents
@@ -535,10 +535,10 @@ client = MeshAI(
 
 ## Design Principles
 
-- **Never crashes the host** — all SDK errors are caught and logged
-- **Buffered batching** — events flush every 5s or 100 events
-- **Background heartbeat** — daemon thread, auto-stops on shutdown
-- **Minimal dependencies** — only `httpx`
+- **Never crashes the host**: all SDK errors are caught and logged
+- **Buffered batching**: events flush every 5s or 100 events
+- **Background heartbeat**: daemon thread, auto-stops on shutdown
+- **Minimal dependencies**: only `httpx`
 
 ## License
 
