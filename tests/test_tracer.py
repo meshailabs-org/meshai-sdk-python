@@ -134,3 +134,40 @@ def test_invalid_api_key_rejected(exporter):
 def test_non_https_base_url_rejected(exporter):
     with pytest.raises(ValueError):
         Tracer(api_key=API_KEY, service_name="x", base_url="http://api.meshai.dev")
+
+
+class TestIngestGatewayRouting:
+    """Telemetry goes to the collector gateway; the API host does not change.
+
+    The gateway absorbs large exports and re-chunks them before the API sees
+    them, so a batch that the API would reject is delivered instead.
+    """
+
+    def test_default_config_sends_telemetry_to_the_gateway(self):
+        from meshai.config import MeshAIConfig
+
+        cfg = MeshAIConfig(api_key="msh_" + "x" * 20)
+        assert cfg.resolved_ingest_url == "https://ingest.meshai.dev"
+        # The API host is unchanged: registry, cost and heartbeat still go there.
+        assert cfg.base_url == "https://api.meshai.dev"
+
+    def test_explicit_ingest_url_wins(self):
+        from meshai.config import MeshAIConfig
+
+        cfg = MeshAIConfig(api_key="msh_" + "x" * 20, ingest_url="https://custom.example")
+        assert cfg.resolved_ingest_url == "https://custom.example"
+
+    def test_self_hosted_base_url_keeps_its_own_telemetry(self):
+        """Regression guard. If a self-hoster's base_url did not carry through,
+        their spans would be shipped to MeshAI's gateway instead of staying on
+        their own infrastructure - a data-egress bug, not a routing detail."""
+        from meshai.config import MeshAIConfig
+
+        cfg = MeshAIConfig(api_key="msh_" + "x" * 20, base_url="https://meshai.internal.corp")
+        assert cfg.resolved_ingest_url == "https://meshai.internal.corp"
+
+    def test_localhost_development_stays_local(self):
+        from meshai.config import MeshAIConfig
+
+        cfg = MeshAIConfig(api_key="msh_" + "x" * 20, base_url="http://localhost:8080")
+        assert cfg.resolved_ingest_url == "http://localhost:8080"
