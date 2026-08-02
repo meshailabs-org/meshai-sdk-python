@@ -211,7 +211,7 @@ class Tracer:
         if span_processor is None:  # pragma: no cover — exercised in E2E, not unit
             span_processor = BatchSpanProcessor(
                 OTLPSpanExporter(
-                    endpoint=f"{config.base_url}{_INGEST_TRACES_PATH}",
+                    endpoint=f"{config.resolved_ingest_url}{_INGEST_TRACES_PATH}",
                     headers={"Authorization": f"Bearer {config.api_key}"},
                 )
             )
