@@ -52,24 +52,30 @@ BUILTIN_PATTERNS: tuple[tuple[str, str], ...] = (
     ("aws_access_key_id", r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
     (
         "github_token",
-        r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b"
-        r"|\bgithub_pat_[A-Za-z0-9_]{20,}",
+        (
+            r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b"
+            r"|\bgithub_pat_[A-Za-z0-9_]{20,}"
+        ),
     ),
     ("slack_token", r"\bxox[baprs]-[A-Za-z0-9\-]{10,}"),
     ("google_api_key", r"\bAIza[0-9A-Za-z_\-]{30,}"),
     ("jwt", r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b"),
     (
         "private_key_block",
-        r"-----BEGIN [A-Z ]*PRIVATE KEY-----"
-        r"[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)",
+        (
+            r"-----BEGIN [A-Z ]*PRIVATE KEY-----"
+            r"[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"
+        ),
     ),
     ("gcp_service_account", r"\"private_key_id\"\s*:\s*\"[0-9a-f]{8,}\""),
     ("bearer_header", r"(?i)\bbearer\s+[A-Za-z0-9_\-.=]{16,}"),
     ("basic_auth_url", r"\b[a-z][a-z0-9+.\-]*://[^/\s:@]+:[^/\s:@]+@"),
     (
         "credential_assignment",
-        r"(?i)\b(?:password|passwd|secret|api_key|apikey|access_token|"
-        r"auth_token)\b\s*[:=]\s*['\"]?\S{6,}",
+        (
+            r"(?i)\b(?:password|passwd|secret|api_key|apikey|access_token|"
+            r"auth_token)\b\s*[:=]\s*['\"]?\S{6,}"
+        ),
     ),
 )
 
@@ -95,7 +101,7 @@ class FilterConfig:
         if not config_path.exists():
             return cls()
         try:
-            import yaml  # noqa: PLC0415 — optional dep, only needed with a config file
+            import yaml
 
             raw = yaml.safe_load(config_path.read_text()) or {}
             tools = raw.get("tools") or {}
@@ -106,7 +112,7 @@ class FilterConfig:
                 for tool, spec in tools.items()
             }
             return cls(allow=allow)
-        except Exception:  # noqa: BLE001 — fail closed on any parse/read error
+        except Exception:
             logger.warning(
                 "meshai.tracer: could not parse %s; content filtering stays "
                 "default-deny", config_path, exc_info=True,
@@ -227,7 +233,7 @@ _B64_RUN = regex.compile(r"[A-Za-z0-9+/_\-]{24,}={0,2}")
 
 def _b64_decode(candidate: str) -> str | None:
     """Best-effort decode of a base64ish run to text, else None."""
-    import base64  # noqa: PLC0415
+    import base64
 
     padded = candidate + "=" * (-len(candidate) % 4)
     for decoder in (base64.b64decode, base64.urlsafe_b64decode):

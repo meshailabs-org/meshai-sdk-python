@@ -52,8 +52,10 @@ CORPUS = [
     ("google_api_key", f"AIza{'G' * 35}"),
     (
         "jwt",
-        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
-        "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJVadQssw5c",
+        (
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
+            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJVadQssw5c"
+        ),
     ),
     (
         "private_key_block",

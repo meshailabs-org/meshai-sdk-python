@@ -87,7 +87,8 @@ def track_semantic_kernel(meshai: MeshAI, kernel: Any) -> None:
         filter_instance = MeshAIPromptFilter(meshai)
         kernel.add_filter("function_invocation", filter_instance)
         logger.info("Semantic Kernel usage tracking enabled")
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional integration; any failure to
+        # attach the filter degrades to untracked, never to a crash.
         logger.warning(
             "Failed to add Semantic Kernel filter. "
             "Install with: pip install semantic-kernel"

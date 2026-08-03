@@ -63,7 +63,7 @@ def track_pydantic_ai(meshai: MeshAI) -> None:
 
         Agent.run = tracked_run
 
-    Agent._meshai_tracked = True  # noqa: SLF001
+    Agent._meshai_tracked = True
     logger.info("Pydantic AI usage tracking enabled")
 
 
