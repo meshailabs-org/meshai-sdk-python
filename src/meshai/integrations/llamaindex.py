@@ -53,7 +53,10 @@ class MeshAILlamaHandler:
             elif payload and "model" in (payload.get("serialized", {}) or {}):
                 self._active_models[event_id] = payload["serialized"]["model"]
         except Exception:
-            pass
+            # A telemetry callback must never break the host application,
+            # so every failure is swallowed. Logged rather than passed so
+            # it stays diagnosable.
+            logger.debug("meshai: failed to capture model info", exc_info=True)
         return event_id
 
     def on_event_end(

@@ -33,7 +33,7 @@ class Transport:
         """Parse JSON response safely — never raises."""
         try:
             return response.json()
-        except Exception:
+        except Exception:  # noqa: BLE001 - documented above: never raises.
             return {"success": False, "error": f"HTTP {response.status_code}: non-JSON response from {path}"}
 
     def _backoff(self, attempt: int) -> float:

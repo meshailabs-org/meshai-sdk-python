@@ -38,9 +38,8 @@ def test_resource_carries_service_name_and_framework(exporter):
 
 def test_session_root_and_child_linkage(exporter):
     tracer = _tracer(exporter)
-    with tracer.session(session_id="sess-1") as session:
-        with session.span("step-1"):
-            pass
+    with tracer.session(session_id="sess-1") as session, session.span("step-1"):
+        pass
     child, root = exporter.get_finished_spans()
     assert root.name == "agent.session"
     assert root.parent is None
@@ -68,11 +67,10 @@ def test_record_llm_call_emits_genai_usage_attributes(exporter):
 
 def test_tool_content_denied_by_default(exporter):
     tracer = _tracer(exporter)
-    with tracer.session() as session:
-        with session.span(
-            "tool", tool_name="Bash", tool_input="cat /etc/passwd"
-        ) as handle:
-            handle.set_content("tool_output", "root:x:0:0")
+    with tracer.session() as session, session.span(
+        "tool", tool_name="Bash", tool_input="cat /etc/passwd"
+    ) as handle:
+        handle.set_content("tool_output", "root:x:0:0")
     tool_span = exporter.get_finished_spans()[0]
     # Structural metadata flows; content does not.
     assert tool_span.attributes["gen_ai.tool.name"] == "Bash"
@@ -84,14 +82,13 @@ def test_tool_content_denied_by_default(exporter):
 def test_allowlisted_tool_content_is_emitted_and_redacted(exporter):
     config = FilterConfig(allow={"Bash": frozenset({"tool_input"})})
     tracer = _tracer(exporter, filters=config)
-    with tracer.session() as session:
-        with session.span(
-            "tool",
-            tool_name="Bash",
-            tool_input=f"export ANTHROPIC_API_KEY=sk-ant-{'a' * 24}",
-            tool_output="still denied",
-        ):
-            pass
+    with tracer.session() as session, session.span(
+        "tool",
+        tool_name="Bash",
+        tool_input=f"export ANTHROPIC_API_KEY=sk-ant-{'a' * 24}",
+        tool_output="still denied",
+    ):
+        pass
     tool_span = exporter.get_finished_spans()[0]
     emitted = tool_span.attributes["meshai.tool.input"]
     assert "sk-ant-" not in emitted
@@ -101,9 +98,8 @@ def test_allowlisted_tool_content_is_emitted_and_redacted(exporter):
 
 def test_session_ends_root_span_on_exception(exporter):
     tracer = _tracer(exporter)
-    with pytest.raises(RuntimeError):
-        with tracer.session():
-            raise RuntimeError("agent crashed")
+    with pytest.raises(RuntimeError), tracer.session():
+        raise RuntimeError("agent crashed")
     (root,) = exporter.get_finished_spans()
     assert root.name == "agent.session"
     assert not root.status.is_ok
@@ -111,10 +107,9 @@ def test_session_ends_root_span_on_exception(exporter):
 
 def test_set_attribute_routes_content_fields_through_filters(exporter):
     tracer = _tracer(exporter)
-    with tracer.session() as session:
-        with session.span("tool", tool_name="Read") as handle:
-            handle.set_attribute("tool_input", "secret file body")  # denied
-            handle.set_attribute("custom.key", "structural")  # plain
+    with tracer.session() as session, session.span("tool", tool_name="Read") as handle:
+        handle.set_attribute("tool_input", "secret file body")  # denied
+        handle.set_attribute("custom.key", "structural")  # plain
     span = exporter.get_finished_spans()[0]
     assert "meshai.tool.input" not in span.attributes
     assert span.attributes["custom.key"] == "structural"

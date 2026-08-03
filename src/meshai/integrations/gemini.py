@@ -88,5 +88,5 @@ def wrap_gemini(genai_client: Any, meshai: MeshAI) -> Any:
 
         genai_client.generate_content = tracked_legacy
 
-    genai_client._meshai_wrapped = True  # noqa: SLF001
+    genai_client._meshai_wrapped = True
     return genai_client

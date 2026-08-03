@@ -87,7 +87,7 @@ def track_agno(meshai: MeshAI) -> None:
         return response
 
     Agent.run = tracked_run
-    Agent._meshai_tracked = True  # noqa: SLF001
+    Agent._meshai_tracked = True
     logger.info("Agno usage tracking enabled")
 
 

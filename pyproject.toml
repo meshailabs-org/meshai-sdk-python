@@ -47,13 +47,15 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "respx>=0.22.0",
-    # Pinned below 0.16: CI installs the newest ruff, so an unpinned range makes
-    # the lint gate non-deterministic - a release we did not make can turn CI red
-    # on a branch that changed nothing. 0.16 adds rules that flag 27 pre-existing
-    # findings across this repo (RUF100, SIM117, ISC004, PYI036, BLE001). Those
-    # are worth fixing, but as a deliberate pass, not as a surprise in whatever
-    # PR happens to run first. See TODOS for the upgrade.
-    "ruff>=0.8.0,<0.16",
+    # Bounded on BOTH sides, and that is the point rather than an accident: CI
+    # installs the newest match, so an open upper bound makes the lint gate
+    # non-deterministic - a release we did not make can turn CI red on a branch
+    # that changed nothing. The floor moves only when someone has actually done
+    # the fixing pass for that version's new rules. The 0.16 pass (RUF100,
+    # SIM117, ISC004, PYI036, PYI034, BLE001, S110, SIM102, UP035) is done, so
+    # the window is now 0.16.x. Raising it to 0.17 means doing that work again,
+    # deliberately, not discovering it in whatever PR runs first.
+    "ruff>=0.16.1,<0.17",
 ]
 
 [project.urls]

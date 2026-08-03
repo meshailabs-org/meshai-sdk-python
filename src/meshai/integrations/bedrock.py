@@ -98,5 +98,5 @@ def wrap_bedrock(bedrock_client: Any, meshai: MeshAI) -> Any:
 
         bedrock_client.invoke_model = tracked_invoke
 
-    bedrock_client._meshai_wrapped = True  # noqa: SLF001
+    bedrock_client._meshai_wrapped = True
     return bedrock_client

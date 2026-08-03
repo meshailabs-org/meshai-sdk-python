@@ -19,6 +19,7 @@ import logging
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from types import TracebackType
 from typing import Any
 
 from opentelemetry import trace as otel_api
@@ -115,7 +116,10 @@ class Session:
         self._attributes = dict(attributes or {})
         self._cm: Any = None
 
-    def __enter__(self) -> "Session":
+    # PYI034 wants typing.Self, which is 3.11+; this package supports 3.10.
+    # Session is concrete and not subclassed, so the concrete annotation is
+    # accurate.
+    def __enter__(self) -> "Session":  # noqa: PYI034
         self._cm = self._tracer.start_as_current_span(
             self._name,
             attributes={
@@ -127,7 +131,12 @@ class Session:
         self._cm.__enter__()
         return self
 
-    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool | None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool | None:
         return self._cm.__exit__(exc_type, exc, tb)
 
     @contextmanager
@@ -249,5 +258,5 @@ class Tracer:
         self._shutdown = True
         try:
             self._provider.shutdown()
-        except Exception:  # noqa: BLE001 — never crash the host agent
+        except Exception:
             logger.warning("meshai.tracer: shutdown failed", exc_info=True)

@@ -33,9 +33,10 @@ class MeshAIConfig:
     def __post_init__(self) -> None:
         if not self.api_key or not self.api_key.startswith("msh_") or len(self.api_key) < 16:
             raise ValueError("Invalid API key format")
-        if not self.base_url.startswith("https://"):
-            if not _LOCALHOST_RE.match(self.base_url):
-                raise ValueError("base_url must use HTTPS (except localhost for development)")
+        if not self.base_url.startswith("https://") and not _LOCALHOST_RE.match(
+            self.base_url
+        ):
+            raise ValueError("base_url must use HTTPS (except localhost for development)")
 
     @property
     def resolved_ingest_url(self) -> str:
