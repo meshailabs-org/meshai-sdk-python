@@ -14,7 +14,6 @@ venv/
 htmlcov/
 .coverage
 
-# Local-only tooling files. Keep untracked.
 AGENTS.md
 CLAUDE.md
 .claude/
