@@ -13,3 +13,7 @@ venv/
 .pytest_cache/
 htmlcov/
 .coverage
+
+AGENTS.md
+CLAUDE.md
+.claude/

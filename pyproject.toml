@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "meshai-sdk"
-version = "0.5.0"
+version = "0.5.1"
 description = "MeshAI Python SDK — Agent Control Plane client"
 readme = "README.md"
 license = "MIT"
@@ -65,6 +65,13 @@ Repository = "https://github.com/meshailabs-org/meshai-sdk-python"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/meshai"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  ".claude",
+]
 
 [tool.ruff]
 target-version = "py310"
