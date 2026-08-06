@@ -14,10 +14,7 @@ venv/
 htmlcov/
 .coverage
 
-# Agent instruction files stay local to a working copy and out of this public
-# repo. They are internal engineering guidance, and hatchling's sdist picks up
-# top-level files, so a tracked copy also ends up inside the published tarball
-# on PyPI (it did, in 0.3.0 / 0.4.0 / 0.5.0). Keep your own copy untracked.
+# Local-only tooling files. Keep untracked.
 AGENTS.md
 CLAUDE.md
 .claude/

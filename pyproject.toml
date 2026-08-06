@@ -66,10 +66,8 @@ Repository = "https://github.com/meshailabs-org/meshai-sdk-python"
 [tool.hatch.build.targets.wheel]
 packages = ["src/meshai"]
 
-# The wheel only ships src/meshai, but the sdist otherwise sweeps in top-level
-# files, which is how CLAUDE.md reached PyPI in 0.3.0 / 0.4.0 / 0.5.0. These are
-# gitignored as well; this is the second lock, so restoring a local copy can
-# never republish it.
+# The wheel ships only src/meshai; the sdist would otherwise pick up top-level
+# files. Keep local-only tooling files out of the published tarball.
 [tool.hatch.build.targets.sdist]
 exclude = [
   "AGENTS.md",
