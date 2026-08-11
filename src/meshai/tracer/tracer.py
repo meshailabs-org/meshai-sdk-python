@@ -15,6 +15,7 @@ async/contextvars-aware Tracer is v2 scope.
 """
 
 import atexit
+import json
 import logging
 import uuid
 from collections.abc import Iterator
@@ -44,6 +45,11 @@ _ATTR_MODEL = "gen_ai.request.model"
 _ATTR_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 _ATTR_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 _ATTR_TOOL_NAME = "gen_ai.tool.name"
+_ATTR_INPUT_MESSAGES = "gen_ai.input.messages"
+_ATTR_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
+_ATTR_RETRIEVAL_QUERY = "gen_ai.retrieval.query.text"
+_STRUCTURED_INPUT_ATTRS = frozenset({_ATTR_INPUT_MESSAGES, _ATTR_SYSTEM_INSTRUCTIONS})
+_GENAI_INPUT_ATTRS = _STRUCTURED_INPUT_ATTRS | {_ATTR_RETRIEVAL_QUERY}
 _CONTENT_ATTR = {"tool_input": "meshai.tool.input", "tool_output": "meshai.tool.output"}
 
 
@@ -51,11 +57,16 @@ class SpanHandle:
     """Thin wrapper over an OTel span with filtered content setters."""
 
     def __init__(
-        self, span: otel_api.Span, filters: FilterPipeline, tool_name: str | None
+        self,
+        span: otel_api.Span,
+        filters: FilterPipeline,
+        tool_name: str | None,
+        capture_inputs: bool = False,
     ) -> None:
         self._span = span
         self._filters = filters
         self._tool_name = tool_name
+        self._capture_inputs = capture_inputs
 
     @property
     def otel_span(self) -> otel_api.Span:
@@ -65,8 +76,21 @@ class SpanHandle:
         """Set a span attribute; content fields go through the filter pipeline."""
         if key in CONTENT_FIELDS:
             self.set_content(key, value)
+        elif key in _GENAI_INPUT_ATTRS:
+            self._set_genai_input_attribute(key, value)
         else:
             self._span.set_attribute(key, value)
+
+    def _set_genai_input_attribute(self, key: str, value: object) -> None:
+        """Apply the explicit opt-in and local redaction to a GenAI input."""
+        if not self._capture_inputs:
+            return
+        if key in _STRUCTURED_INPUT_ATTRS:
+            serialized = _serialize_structured_input(value)
+            if serialized is not None:
+                self._span.set_attribute(key, self._filters.redact(serialized))
+        elif isinstance(value, str) and value:
+            self._span.set_attribute(key, self._filters.redact(value))
 
     def set_content(self, content_field: str, value: Any) -> None:
         """Attach tool_input/tool_output subject to default-deny + redaction."""
@@ -93,6 +117,24 @@ class SpanHandle:
         self._span.set_attribute(_ATTR_INPUT_TOKENS, int(input_tokens))
         self._span.set_attribute(_ATTR_OUTPUT_TOKENS, int(output_tokens))
 
+    def record_inputs(
+        self,
+        input_messages: object | None = None,
+        system_instructions: object | None = None,
+        retrieval_query: str | None = None,
+    ) -> None:
+        """Attach supported GenAI inputs only when the tracer explicitly opted in."""
+        if not self._capture_inputs:
+            return
+        for key, value in (
+            (_ATTR_INPUT_MESSAGES, input_messages),
+            (_ATTR_SYSTEM_INSTRUCTIONS, system_instructions),
+        ):
+            if value is not None:
+                self._set_genai_input_attribute(key, value)
+        if retrieval_query is not None:
+            self._set_genai_input_attribute(_ATTR_RETRIEVAL_QUERY, retrieval_query)
+
 
 class Session:
     """A traced agent session: one root span, children nest inside it.
@@ -108,12 +150,14 @@ class Session:
         session_id: str,
         name: str,
         attributes: dict[str, Any] | None = None,
+        capture_inputs: bool = False,
     ) -> None:
         self._tracer = otel_tracer
         self._filters = filters
         self.session_id = session_id
         self._name = name
         self._attributes = dict(attributes or {})
+        self._capture_inputs = capture_inputs
         self._cm: Any = None
 
     # PYI034 wants typing.Self, which is 3.11+; this package supports 3.10.
@@ -153,9 +197,16 @@ class Session:
         if tool_name:
             attrs[_ATTR_TOOL_NAME] = tool_name
             attrs[_ATTR_OPERATION] = "execute_tool"
-        attrs.update(attributes or {})
+        input_attrs: dict[str, Any] = {}
+        for key, value in (attributes or {}).items():
+            if key in _GENAI_INPUT_ATTRS:
+                input_attrs[key] = value
+            else:
+                attrs[key] = value
         with self._tracer.start_as_current_span(name, attributes=attrs) as span:
-            handle = SpanHandle(span, self._filters, tool_name)
+            handle = SpanHandle(span, self._filters, tool_name, self._capture_inputs)
+            for key, value in input_attrs.items():
+                handle.set_attribute(key, value)
             if tool_input is not None:
                 handle.set_content("tool_input", tool_input)
             if tool_output is not None:
@@ -170,10 +221,14 @@ class Session:
         output_tokens: int,
         operation: str = "chat",
         attributes: dict[str, Any] | None = None,
+        input_messages: object | None = None,
+        system_instructions: object | None = None,
+        retrieval_query: str | None = None,
     ) -> None:
         """Record a completed LLM call as an instant child span with usage."""
         with self.span(f"{operation} {model}", attributes=attributes) as handle:
             handle.record_usage(provider, model, input_tokens, output_tokens, operation)
+            handle.record_inputs(input_messages, system_instructions, retrieval_query)
 
 
 class Tracer:
@@ -203,6 +258,7 @@ class Tracer:
         filters: FilterConfig | None = None,
         resource_attributes: dict[str, Any] | None = None,
         span_processor: SpanProcessor | None = None,
+        capture_inputs: bool = False,
     ) -> None:
         # Reuse the SDK config for key-format and HTTPS validation.
         config = MeshAIConfig(
@@ -229,6 +285,7 @@ class Tracer:
         self._filters = FilterPipeline(
             filters if filters is not None else FilterConfig.load()
         )
+        self._capture_inputs = capture_inputs
         self._shutdown = False
         atexit.register(self.shutdown)
 
@@ -245,6 +302,7 @@ class Tracer:
             session_id=session_id or uuid.uuid4().hex,
             name=name,
             attributes=attributes,
+            capture_inputs=self._capture_inputs,
         )
 
     def flush(self, timeout_millis: int = 10_000) -> bool:
@@ -260,3 +318,14 @@ class Tracer:
             self._provider.shutdown()
         except Exception:
             logger.warning("meshai.tracer: shutdown failed", exc_info=True)
+
+
+def _serialize_structured_input(value: object | None) -> str | None:
+    """Serialize only OTel-compatible structured input, failing closed."""
+    if not isinstance(value, (dict, list, tuple)):
+        return None
+    try:
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
+    except (TypeError, ValueError, RecursionError):
+        logger.warning("meshai.tracer: GenAI input could not be serialized; content dropped")
+        return None

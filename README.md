@@ -85,6 +85,38 @@ tracer.flush()     # force-export before ephemeral compute exits
 tracer.shutdown()  # also registered atexit
 ```
 
+### Optional GenAI input capture
+
+GenAI input content is not emitted by default. To supply supported input evidence,
+the application must opt in locally and the tenant must separately enable payload
+capture in MeshAI settings:
+
+```python
+tracer = Tracer(
+    api_key="msh_...",
+    service_name="my-agent",
+    capture_inputs=True,
+)
+
+with tracer.session() as session:
+    session.record_llm_call(
+        "anthropic",
+        "claude-sonnet-4-6",
+        input_tokens=120,
+        output_tokens=40,
+        input_messages=[{"role": "user", "content": "Summarize this case"}],
+        system_instructions=[{"type": "text", "content": "Be concise"}],
+        retrieval_query="customer case history",
+    )
+```
+
+The SDK emits only the standard `gen_ai.input.messages`,
+`gen_ai.system_instructions`, and `gen_ai.retrieval.query.text` attributes.
+Known secret patterns are redacted locally and the server applies its mandatory
+sanitizer again before storage. Sanitized input is not anonymous or guaranteed
+to be free of personal data. If local opt-in or the tenant setting is absent,
+MeshAI receives structural telemetry only.
+
 ### Content filtering (default-deny)
 
 Tool content never leaves the process unless you opt in per tool in
