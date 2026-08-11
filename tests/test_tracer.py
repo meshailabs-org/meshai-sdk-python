@@ -1,5 +1,7 @@
 """Tests for meshai.tracer.Tracer — spans verified via in-memory export."""
 
+import json
+
 import pytest
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
@@ -63,6 +65,89 @@ def test_record_llm_call_emits_genai_usage_attributes(exporter):
     assert llm_span.attributes["gen_ai.operation.name"] == "chat"
     assert llm_span.attributes["gen_ai.usage.input_tokens"] == 1850
     assert llm_span.attributes["gen_ai.usage.output_tokens"] == 420
+
+
+def test_record_llm_call_drops_inputs_by_default(exporter):
+    tracer = _tracer(exporter)
+    with tracer.session() as session:
+        session.record_llm_call(
+            "anthropic",
+            "claude-sonnet-4-6",
+            input_tokens=10,
+            output_tokens=5,
+            input_messages=[{"role": "user", "content": "private prompt"}],
+            system_instructions=[{"type": "text", "content": "private system"}],
+            retrieval_query="private retrieval query",
+        )
+    attributes = exporter.get_finished_spans()[0].attributes
+    assert "gen_ai.input.messages" not in attributes
+    assert "gen_ai.system_instructions" not in attributes
+    assert "gen_ai.retrieval.query.text" not in attributes
+
+
+def test_record_llm_call_emits_redacted_standard_inputs_when_opted_in(exporter):
+    tracer = _tracer(exporter, capture_inputs=True)
+    with tracer.session() as session:
+        session.record_llm_call(
+            "anthropic",
+            "claude-sonnet-4-6",
+            input_tokens=10,
+            output_tokens=5,
+            input_messages=[{"role": "user", "content": f"key sk-ant-{'a' * 24}"}],
+            system_instructions=[{"type": "text", "content": "Be concise"}],
+            retrieval_query="find account test@example.com",
+        )
+    attributes = exporter.get_finished_spans()[0].attributes
+    messages = json.loads(attributes["gen_ai.input.messages"])
+    assert messages[0]["role"] == "user"
+    assert "sk-ant-" not in messages[0]["content"]
+    assert "[REDACTED:anthropic_api_key]" in messages[0]["content"]
+    assert json.loads(attributes["gen_ai.system_instructions"])[0]["content"] == "Be concise"
+    assert attributes["gen_ai.retrieval.query.text"] == "find account test@example.com"
+
+
+def test_input_serialization_failure_never_breaks_host_agent(exporter):
+    cyclic = []
+    cyclic.append(cyclic)
+    tracer = _tracer(exporter, capture_inputs=True)
+    with tracer.session() as session:
+        session.record_llm_call(
+            "openai",
+            "gpt-4o",
+            input_tokens=1,
+            output_tokens=1,
+            input_messages=cyclic,
+        )
+    attributes = exporter.get_finished_spans()[0].attributes
+    assert "gen_ai.input.messages" not in attributes
+
+
+def test_generic_attribute_path_cannot_bypass_input_opt_in(exporter):
+    tracer = _tracer(exporter)
+    with tracer.session() as session, session.span(
+        "llm",
+        attributes={
+            "gen_ai.input.messages": [{"role": "user", "content": "private"}],
+            "gen_ai.retrieval.query.text": "private query",
+            "custom.structural": "kept",
+        },
+    ):
+        pass
+    attributes = exporter.get_finished_spans()[0].attributes
+    assert "gen_ai.input.messages" not in attributes
+    assert "gen_ai.retrieval.query.text" not in attributes
+    assert attributes["custom.structural"] == "kept"
+
+
+def test_set_attribute_applies_input_opt_in_and_redaction(exporter):
+    tracer = _tracer(exporter, capture_inputs=True)
+    with tracer.session() as session, session.span("llm") as handle:
+        handle.set_attribute(
+            "gen_ai.input.messages",
+            [{"role": "user", "content": f"sk-ant-{'b' * 24}"}],
+        )
+    messages = json.loads(exporter.get_finished_spans()[0].attributes["gen_ai.input.messages"])
+    assert messages[0]["content"] == "[REDACTED:anthropic_api_key]"
 
 
 def test_tool_content_denied_by_default(exporter):
